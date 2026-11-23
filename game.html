@@ -1,1 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>疯狂找杂物 · VSheng</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f172a 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      overflow-x: hidden;
+    }
+    .header {
+      width: min(96vw, 760px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, #fde047, #fb923c, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stats {
+      display: flex;
+      gap: 10px;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+    .pill {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 6px 12px;
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+    }
+    .pill.danger { background: rgba(239, 68, 68, 0.35); border-color: #f87171; animation: pulse 0.6s infinite; }
 
+    .targets-bar {
+      width: min(96vw, 760px);
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .targets-list {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .target-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 5px 11px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      transition: all 0.25s;
+    }
+    .target-chip .ico { font-size: 1.35rem; }
+    .target-chip.found {
+      background: rgba(34, 197, 94, 0.22);
+      border-color: #4ade80;
+      opacity: 0.55;
+      text-decoration: line-through;
+      transform: scale(0.94);
+    }
+
+    .tools {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      border: none;
+      cursor: pointer;
+      padding: 7px 13px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+      transition: transform 0.12s, opacity 0.2s;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn.warn { background: linear-gradient(135deg, #f59e0b, #ea580c); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35); }
+    .btn.ghost { background: rgba(255,255,255,0.14); box-shadow: none; }
+
+    .board {
+      position: relative;
+      width: min(96vw, 760px);
+      height: min(64vh, 520px);
+      min-height: 360px;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.08), transparent 40%),
+        repeating-linear-gradient(45deg, #2b2118 0px, #2b2118 14px, #251c14 14px, #251c14 28px);
+      border: 3px solid rgba(251, 191, 36, 0.35);
+      box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.65), 0 20px 50px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    .item {
+      position: absolute;
+      cursor: pointer;
+      line-height: 1;
+      filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.55));
+      transition: transform 0.16s ease, opacity 0.25s ease;
+      transform-origin: center;
+    }
+    .item:hover { transform: scale(1.18) !important; z-index: 999 !important; }
+    .item.found-pop {
+      transform: scale(1.7) rotate(0deg) !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .item.wrong-shake { animation: shake 0.35s ease; }
+    .item.hint-glow {
+      filter: drop-shadow(0 0 14px #fde047) drop-shadow(0 0 28px #f59e0b) !important;
+      animation: hintPulse 0.55s ease-in-out 4;
+      z-index: 1000 !important;
+    }
+
+    .float-text {
+      position: absolute;
+      font-weight: 800;
+      font-size: 1.1rem;
+      pointer-events: none;
+      z-index: 1200;
+      animation: floatUp 0.8s ease-out forwards;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.78);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+    .overlay.hidden { display: none; }
+    .modal {
+      width: min(90vw, 400px);
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 22px;
+      padding: 28px 24px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    }
+    .modal h2 { font-size: 1.65rem; margin-bottom: 10px; }
+    .modal p { color: #cbd5e1; margin-bottom: 20px; line-height: 1.6; }
+    .modal .btn { padding: 11px 26px; font-size: 1rem; border-radius: 12px; }
+
+    @keyframes shake {
+      0%, 100% { translate: 0 0; }
+      25% { translate: -6px 0; }
+      75% { translate: 6px 0; }
+    }
+    @keyframes hintPulse {
+      0%, 100% { scale: 1; }
+      50% { scale: 1.45; }
+    }
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-42px) scale(1.15); }
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">🧺 疯狂找杂物</div>
+    <div class="stats">
+      <div class="pill">第 <span id="level">1</span> 关</div>
+      <div class="pill">得分 <span id="score">0</span></div>
+      <div class="pill" id="timerPill">⏳ <span id="time">45</span>s</div>
+    </div>
+  </div>
+
+  <div class="targets-bar">
+    <div class="targets-list" id="targetsList"></div>
+    <div class="tools">
+      <button class="btn warn" id="hintBtn">🔍 提示 (<span id="hintCount">2</span>)</button>
+      <button class="btn" id="shuffleBtn">🌪️ 翻一翻 (<span id="shuffleCount">2</span>)</button>
+      <button class="btn ghost" id="soundBtn">🔊</button>
+    </div>
+  </div>
+
+  <div class="board" id="board"></div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2 id="modalTitle">🧺 疯狂找杂物</h2>
+      <p id="modalDesc">在一堆乱七八糟的杂物中，尽快找出上方列出的所有目标物品！<br>点错会扣 2 秒，连续找对有连击加分！</p>
+      <button class="btn" id="startBtn">开始挑战</button>
+    </div>
+  </div>
+
+  <script>
+    const POOL = [
+      ['🔑','钥匙'], ['🍕','披萨'], ['🦆','小黄鸭'], ['✂️','剪刀'], ['💍','钻戒'],
+      ['📷','相机'], ['🥑','牛油果'], ['👑','皇冠'], ['🧦','袜子'], ['🚀','火箭'],
+      ['🍩','甜甜圈'], ['🎸','吉他'], ['🧲','磁铁'], ['🧸','泰迪熊'], ['🎈','气球'],
+      ['🍔','汉堡'], ['🕶️','墨镜'], ['🎧','耳机'], ['🍓','草莓'], ['🌵','仙人掌'],
+      ['⏰','闹钟'], ['💡','灯泡'], ['🎲','骰子'], ['☂️','雨伞'], ['🧩','拼图'],
+      ['🎁','礼物'], ['🍌','香蕉'], ['🍦','冰淇淋'], ['🦋','蝴蝶'], ['🐙','章鱼'],
+      ['🍄','蘑菇'], ['🔮','水晶球'], ['📎','回形针'], ['🔦','手电筒'], ['🥁','小鼓'],
+      ['🏀','篮球'], ['🚗','小汽车'], ['✈️','飞机'], ['⚓','船锚'], ['💎','宝石'],
+      ['🧀','奶酪'], ['🥨','椒盐卷'], ['🍉','西瓜'], ['🍒','樱桃'], ['🦊','狐狸'],
+      ['🐸','青蛙'], ['🦉','猫头鹰'], ['🐝','蜜蜂'], ['🦀','螃蟹'], ['🐌','蜗牛'],
+      ['🧭','指南针'], ['🪛','螺丝刀'], ['🔨','锤子'], ['🪜','梯子'], ['🧪','试管'],
+      ['🎨','调色板'], ['🏆','奖杯'], ['🥇','金牌'], ['🎯','靶心'], ['🪁','风筝']
+    ];
+
+    const board = document.getElementById('board');
+    const targetsList = document.getElementById('targetsList');
+    const levelEl = document.getElementById('level');
+    const scoreEl = document.getElementById('score');
+    const timeEl = document.getElementById('time');
+    const timerPill = document.getElementById('timerPill');
+    const hintBtn = document.getElementById('hintBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const hintCountEl = document.getElementById('hintCount');
+    const shuffleCountEl = document.getElementById('shuffleCount');
+    const soundBtn = document.getElementById('soundBtn');
+    const overlay = document.getElementById('overlay');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalDesc = document.getElementById('modalDesc');
+    const startBtn = document.getElementById('startBtn');
+
+    let level = 1, score = 0, timeLeft = 45, combo = 0;
+    let hints = 2, shuffles = 2, soundOn = true;
+    let timer = null;
+    let targets = []; // [{ icon, name, found, el }]
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function beep(freq, dur, type = 'sine', gainVal = 0.12) {
+      if (!soundOn) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dur);
+    }
+
+    soundBtn.onclick = () => {
+      soundOn = !soundOn;
+      soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    };
+
+    function shuffleArr(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function spawnFloat(x, y, text, color) {
+      const div = document.createElement('div');
+      div.className = 'float-text';
+      div.textContent = text;
+      div.style.left = x + 'px';
+      div.style.top = y + 'px';
+      div.style.color = color;
+      board.appendChild(div);
+      setTimeout(() => div.remove(), 800);
+    }
+
+    function randomPos(size) {
+      const pad = 16;
+      const bw = Math.max(board.clientWidth - size - pad * 2, 40);
+      const bh = Math.max(board.clientHeight - size - pad * 2, 40);
+      return {
+        x: pad + Math.random() * bw,
+        y: pad + Math.random() * bh,
+        rot: Math.floor(Math.random() * 320) - 160
+      };
+    }
+
+    function startLevel(lv) {
+      clearInterval(timer);
+      level = lv;
+      combo = 0;
+      const targetNum = Math.min(3 + Math.floor((lv - 1) / 2), 7);
+      const totalItems = Math.min(26 + lv * 10, 95);
+      timeLeft = Math.max(45 - Math.floor((lv - 1) / 3) * 3, 25);
+      hints = 2;
+      shuffles = 2;
+
+      levelEl.textContent = level;
+      scoreEl.textContent = score;
+      timeEl.textContent = timeLeft;
+      timerPill.classList.remove('danger');
+      hintCountEl.textContent = hints;
+      shuffleCountEl.textContent = shuffles;
+      hintBtn.disabled = false;
+      shuffleBtn.disabled = false;
+
+      board.innerHTML = '';
+      targetsList.innerHTML = '';
+
+      const shuffled = shuffleArr(POOL);
+      const chosenTargets = shuffled.slice(0, targetNum);
+      const distractorsPool = shuffled.slice(targetNum);
+
+      targets = chosenTargets.map(([icon, name]) => ({ icon, name, found: false, el: null, chipEl: null }));
+
+      targets.forEach(t => {
+        const chip = document.createElement('div');
+        chip.className = 'target-chip';
+        chip.innerHTML = `<span class="ico">${t.icon}</span><span>${t.name}</span>`;
+        targetsList.appendChild(chip);
+        t.chipEl = chip;
+      });
+
+      const itemsToPlace = [];
+      // 干扰杂物
+      for (let i = 0; i < totalItems - targetNum; i++) {
+        const [icon] = distractorsPool[i % distractorsPool.length];
+        itemsToPlace.push({ icon, targetObj: null });
+      }
+      // 目标杂物
+      targets.forEach(t => itemsToPlace.push({ icon: t.icon, targetObj: t }));
+
+      const finalOrder = shuffleArr(itemsToPlace);
+      finalOrder.forEach((entry, idx) => {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.textContent = entry.icon;
+        const baseSize = Math.max(30, 46 - lv * 1.4);
+        const size = Math.round(baseSize + (Math.random() * 14 - 7));
+        const pos = randomPos(size);
+        el.style.fontSize = size + 'px';
+        el.style.left = pos.x + 'px';
+        el.style.top = pos.y + 'px';
+        el.style.transform = `rotate(${pos.rot}deg)`;
+        // 保证目标不会被压在最底层完全看不到
+        el.style.zIndex = entry.targetObj ? Math.floor(totalItems * 0.55) + idx : idx + 1;
+
+        if (entry.targetObj) entry.targetObj.el = el;
+
+        el.addEventListener('click', e => {
+          e.stopPropagation();
+          const rect = board.getBoundingClientRect();
+          const fx = e.clientX - rect.left - 18;
+          const fy = e.clientY - rect.top - 18;
+
+          if (entry.targetObj && !entry.targetObj.found) {
+            entry.targetObj.found = true;
+            combo++;
+            const gain = 100 + (combo - 1) * 30;
+            score += gain;
+            scoreEl.textContent = score;
+            el.classList.remove('hint-glow');
+            el.classList.add('found-pop');
+            entry.targetObj.chipEl.classList.add('found');
+            beep(520 + combo * 80, 0.14, 'triangle');
+            spawnFloat(fx, fy, combo > 1 ? `+${gain} 🔥x${combo}` : `+${gain}`, '#4ade80');
+
+            if (targets.every(t => t.found)) {
+              clearInterval(timer);
+              const bonus = timeLeft * 10;
+              score += bonus;
+              scoreEl.textContent = score;
+              beep(660, 0.12); setTimeout(() => beep(880, 0.22), 110);
+              setTimeout(() => {
+                modalTitle.textContent = `🎉 第 ${level} 关通关！`;
+                modalDesc.innerHTML = `眼力太绝了！剩余时间奖励 <b>+${bonus}</b> 分<br>当前总分：<b>${score}</b>`;
+                startBtn.textContent = `挑战第 ${level + 1} 关`;
+                startBtn.onclick = () => { overlay.classList.add('hidden'); startLevel(level + 1); };
+                overlay.classList.remove('hidden');
+              }, 450);
+            }
+          } else {
+            combo = 0;
+            timeLeft = Math.max(0, timeLeft - 2);
+            timeEl.textContent = timeLeft;
+            el.classList.remove('wrong-shake');
+            void el.offsetWidth;
+            el.classList.add('wrong-shake');
+            beep(180, 0.16, 'sawtooth', 0.08);
+            spawnFloat(fx, fy, '-2s ❌', '#f87171');
+            if (timeLeft <= 0) gameOver();
+          }
+        });
+
+        board.appendChild(el);
+      });
+
+      timer = setInterval(() => {
+        timeLeft--;
+        timeEl.textContent = timeLeft;
+        if (timeLeft <= 10) timerPill.classList.add('danger');
+        if (timeLeft <= 0) gameOver();
+      }, 1000);
+    }
+
+    function gameOver() {
+      clearInterval(timer);
+      beep(220, 0.25, 'sawtooth', 0.1);
+      modalTitle.textContent = '⏰ 时间到！';
+      modalDesc.innerHTML = `你闯到了第 <b>${level}</b> 关，最终得分 <b>${score}</b>！<br>要不要再来一局刷新纪录？`;
+      startBtn.textContent = '重新开始';
+      startBtn.onclick = () => {
+        score = 0;
+        overlay.classList.add('hidden');
+        startLevel(1);
+      };
+      overlay.classList.remove('hidden');
+    }
+
+    hintBtn.onclick = () => {
+      if (hints <= 0) return;
+      const remain = targets.filter(t => !t.found);
+      if (!remain.length) return;
+      hints--;
+      hintCountEl.textContent = hints;
+      if (hints <= 0) hintBtn.disabled = true;
+      const pick = remain[Math.floor(Math.random() * remain.length)];
+      pick.el.classList.remove('hint-glow');
+      void pick.el.offsetWidth;
+      pick.el.classList.add('hint-glow');
+      beep(740, 0.15, 'sine');
+    };
+
+    shuffleBtn.onclick = () => {
+      if (shuffles <= 0) return;
+      shuffles--;
+      shuffleCountEl.textContent = shuffles;
+      if (shuffles <= 0) shuffleBtn.disabled = true;
+      beep(360, 0.15, 'triangle');
+      const items = board.querySelectorAll('.item:not(.found-pop)');
+      items.forEach(el => {
+        const size = parseInt(el.style.fontSize, 10) || 38;
+        const pos = randomPos(size);
+        el.style.left = pos.x + 'px';
+        el.style.top = pos.y + 'px';
+        el.style.transform = `rotate(${pos.rot}deg)`;
+      });
+    };
+
+    startBtn.onclick = () => {
+      score = 0;
+      overlay.classList.add('hidden');
+      startLevel(1);
+    };
+  </script>
+</body>
+</html>
